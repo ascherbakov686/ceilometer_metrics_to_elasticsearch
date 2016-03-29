@@ -12,12 +12,9 @@ try:
 except ImportError:
     from ceilometer.i18n import _
 
-import socket
-from oslo.config import cfg
-from oslo.config import types
-
-import time
 import re
+import socket
+import time
 import os
 import urllib2, json
 
