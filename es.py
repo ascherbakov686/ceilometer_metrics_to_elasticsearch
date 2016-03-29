@@ -18,6 +18,7 @@ from oslo.config import types
 
 import time
 import re
+import os
 import urllib2, json
 
 LOG = log.getLogger(__name__)
@@ -45,6 +46,8 @@ class ESPublisher(publisher.PublisherBase):
         for sample in samples:
 
             stats_time = time.time()
+
+	    region = os.environ.get('OS_REGION_NAME')
 
             msg = sample.as_dict()
 
@@ -76,11 +79,11 @@ class ESPublisher(publisher.PublisherBase):
 
                data1 = [
                    { "index" : { } },
-                   { "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "ram": ram, "stats_time":stats_time },
+                   { "region": region, "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "ram": ram, "stats_time":stats_time },
                    { "index" : { } },
-                   { "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "cpu_count": vcpus, "stats_time":stats_time },
+                   { "region": region, "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "cpu_count": vcpus, "stats_time":stats_time },
                    { "index" : { } },
-                   { "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "disk_space": disk_gb, "stats_time":stats_time },
+                   { "region": region, "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "disk_space": disk_gb, "stats_time":stats_time },
                ]
 
                self.ESPush(data1)
@@ -89,7 +92,7 @@ class ESPublisher(publisher.PublisherBase):
 
                data2 = [
                    { "index" : { } },
-                   { "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "metric_name": metric_name, "volume": volume, "stats_time": stats_time },
+                   { "region": region, "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "metric_name": metric_name, "volume": volume, "stats_time": stats_time },
                ]
                self.ESPush(data2)
 
