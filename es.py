@@ -12,11 +12,29 @@ try:
 except ImportError:
     from ceilometer.i18n import _
 
+import novaclient
+from oslo_config import cfg
+from novaclient import client as nova_client
+
 import re
 import socket
 import time
 import os
 import urllib2, json
+
+METRIC_KEYS = (
+    'current_workload',
+    'disk_available_least',
+    'local_gb',
+    'local_gb_used',
+    'memory_mb',
+    'memory_mb_used',
+    'running_vms',
+    'vcpus',
+    'vcpus_used',
+)
+
+DEFAULT_SCHEME = '{}.nova.hypervisors'.format(socket.gethostname())
 
 LOG = log.getLogger(__name__)
 
@@ -25,6 +43,27 @@ class ESPublisher(publisher.PublisherBase):
     def __init__(self, parsed_url):
         self.host, self.port = network_utils.parse_host_port(parsed_url.netloc,default_port=9200)
         self.hostnode = socket.gethostname().split('.')[0]
+        conf = cfg.CONF.service_credentials
+        self.conf = conf
+        tenant = conf.os_tenant_id or conf.os_tenant_name
+        self.nc = nova_client.Client(
+            version=2,
+            username=conf.os_username,
+            api_key=conf.os_password,
+            project_id=tenant,
+            auth_url=conf.os_auth_url,
+            region_name=conf.os_region_name,
+            endpoint_type=conf.os_endpoint_type,
+            service_type=cfg.CONF.service_types.nova,
+            cacert=conf.os_cacert,
+            insecure=conf.insecure,
+            timeout=cfg.CONF.http_timeout,
+            http_log_debug=cfg.CONF.nova_http_log_debug,
+            no_cache=True)
+
+    def output_metric(self, name, value):
+        print '{}\t{}\t{}'.format(name, value, int(time.time()))
+
 
     def ESPush(self, metric):
         LOG.debug("Sending ElasticSearch metric:" + str(metric))
@@ -44,7 +83,15 @@ class ESPublisher(publisher.PublisherBase):
 
             stats_time = time.time()
 
-	    region = os.environ.get('OS_REGION_NAME')
+            hypervisors = self.nc.hypervisors.list()
+
+            for hv in hypervisors:
+               for key, value in hv.to_dict().iteritems():
+                   if key in METRIC_KEYS and hv.hypervisor_hostname == self.hostnode:
+                          LOG.debug('{} {} {}'.format(hv.hypervisor_hostname, key, value))
+
+
+            region = self.conf.os_region_name
 
             msg = sample.as_dict()
 
