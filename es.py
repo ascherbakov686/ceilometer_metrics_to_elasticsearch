@@ -34,8 +34,6 @@ METRIC_KEYS = (
     'vcpus_used',
 )
 
-DEFAULT_SCHEME = '{}.nova.hypervisors'.format(socket.gethostname())
-
 LOG = log.getLogger(__name__)
 
 class ESPublisher(publisher.PublisherBase):
@@ -83,14 +81,6 @@ class ESPublisher(publisher.PublisherBase):
 
             stats_time = time.time()
 
-            hypervisors = self.nc.hypervisors.list()
-
-            for hv in hypervisors:
-               for key, value in hv.to_dict().iteritems():
-                   if key in METRIC_KEYS and hv.hypervisor_hostname == self.hostnode:
-                          LOG.debug('{} {} {}'.format(hv.hypervisor_hostname, key, value))
-
-
             region = self.conf.os_region_name
 
             msg = sample.as_dict()
@@ -105,6 +95,18 @@ class ESPublisher(publisher.PublisherBase):
             instance_match = re.match('instance', metric_name)
             network_match = re.match('network', metric_name)
             disk_match = re.match('disk', metric_name)
+
+            hypervisors = self.nc.hypervisors.list()
+
+            data0 = []
+
+            for hv in hypervisors:
+               for key, value in hv.to_dict().iteritems():
+                   if key in METRIC_KEYS and hv.hypervisor_hostname == self.hostnode:
+                          data0.append({ "index" : { } })
+                          data0.append({"region" : region, "host" : self.hostnode, "project_id": project_id, key:value, "stats_time":stats_time})
+                          #LOG.debug(data0)
+                          self.ESPush(data0)
 
             if disk_match:
                 ram = metadata['memory_mb']
