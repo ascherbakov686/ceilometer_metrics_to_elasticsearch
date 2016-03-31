@@ -21,17 +21,51 @@ import socket
 import time
 import os
 import urllib2, json
+from datetime import datetime
 
 METRIC_KEYS = (
-    'current_workload',
-    'disk_available_least',
+    #'current_workload',
+    #'disk_available_least',
     'local_gb',
-    'local_gb_used',
+    #'local_gb_used',
     'memory_mb',
-    'memory_mb_used',
-    'running_vms',
+    #'memory_mb_used',
+    #'running_vms',
     'vcpus',
-    'vcpus_used',
+    #'vcpus_used',
+    'disk.allocation',
+    'memory.resident',
+    'cpu_util',
+)
+
+METRIC_KEYS_SEND = (
+    #'current_workload',
+    #'disk_available_least',
+    'disk',
+    #'local_gb_used',
+    'memory',
+    #'memory_mb_used',
+    #'running_vms',
+    'cpu',
+    #'vcpus_used',
+    'disk',
+    'memory',
+    'cpu',
+)
+
+METRIC_VALUE_NORM = (
+    #'current_workload',
+    #'disk_available_least',
+    1024000000,
+    #'local_gb_used',
+    1024000,
+    #'memory_mb_used',
+    #'running_vms',
+    1,
+    #'vcpus_used',
+    1,
+    1024000,
+    1,
 )
 
 LOG = log.getLogger(__name__)
@@ -59,9 +93,6 @@ class ESPublisher(publisher.PublisherBase):
             http_log_debug=cfg.CONF.nova_http_log_debug,
             no_cache=True)
 
-    def output_metric(self, name, value):
-        print '{}\t{}\t{}'.format(name, value, int(time.time()))
-
 
     def ESPush(self, metric):
         LOG.debug("Sending ElasticSearch metric:" + str(metric))
@@ -79,7 +110,8 @@ class ESPublisher(publisher.PublisherBase):
     def publish_samples(self, context, samples):
         for sample in samples:
 
-            stats_time = time.time()
+            #stats_time = int(time.time())
+            stats_time = datetime.now()
 
             region = self.conf.os_region_name
 
@@ -103,10 +135,12 @@ class ESPublisher(publisher.PublisherBase):
             for hv in hypervisors:
                for key, value in hv.to_dict().iteritems():
                    if key in METRIC_KEYS and hv.hypervisor_hostname == self.hostnode:
+                          i = METRIC_KEYS.index(key)
                           data0.append({ "index" : { } })
-                          data0.append({"region" : region, "host" : self.hostnode, "project_id": project_id, key:value, "stats_time":stats_time})
+                          data0.append({"region" : region, "host" : self.hostnode, "project_id": project_id, \
+                          "metric_name": METRIC_KEYS_SEND[i], "volume_total": value*METRIC_VALUE_NORM[i], "@timestamp":str(stats_time)})
                           #LOG.debug(data0)
-                          self.ESPush(data0)
+            self.ESPush(data0)
 
             if disk_match:
                 ram = metadata['memory_mb']
@@ -121,6 +155,7 @@ class ESPublisher(publisher.PublisherBase):
             else:
                 vm = resource_id
 
+            """
             if disk_match:
 
                data1 = [
@@ -133,14 +168,19 @@ class ESPublisher(publisher.PublisherBase):
                ]
 
                self.ESPush(data1)
+            """
 
             if data_type == 'gauge' and instance_match is None:
 
-               data2 = [
-                   { "index" : { } },
-                   { "region" : region, "host" : self.hostnode, "project_id": project_id, "instance_id": vm, "metric_name": metric_name, "volume": volume, "stats_time": stats_time },
-               ]
-               self.ESPush(data2)
+               data2 = []
+               if metric_name in METRIC_KEYS:
+                   i = METRIC_KEYS.index(metric_name)
+                   data2.append({ "index" : { } },)
+                   data2.append({ "region" : region, "host" : self.hostnode, \
+                   "project_id": project_id, "instance_id": vm, \
+                   "metric_name": METRIC_KEYS_SEND[i], "volume": volume*METRIC_VALUE_NORM[i], \
+                   "@timestamp": str(stats_time) })
+                   self.ESPush(data2)
 
             else:
                 LOG.debug(_("[-]"))
